@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tactical Convoy Evasion – RL Dashboard</title>
+
+  <!-- Google Fonts: Share Tech Mono (terminal feel) + Rajdhani (military sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ═══════════════════════════════════════════
+       CSS CUSTOM PROPERTIES  (design tokens)
+    ═══════════════════════════════════════════ */
+    :root {
+      --bg-deep:    #0b0f1a;
+      --bg-panel:   #111827;
+      --bg-card:    #161e2e;
+      --border:     #1e2d44;
+      --accent:     #4cc9f0;   /* cyan – active / highlight */
+      --green:      #7bed9f;   /* success green */
+      --red:        #ff6b6b;   /* danger / detected */
+      --gold:       #ffd166;   /* target / base */
+      --text-main:  #d1daf0;
+      --text-muted: #607090;
+      --text-dim:   #3a4a65;
+      --font-mono:  'Share Tech Mono', monospace;
+      --font-ui:    'Rajdhani', sans-serif;
+      --radius:     6px;
+      --glow-cyan:  0 0 18px rgba(76, 201, 240, 0.35);
+      --glow-green: 0 0 18px rgba(123, 237, 159, 0.35);
+    }
+
+    /* ── Reset & base ──────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-deep);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      font-size: 16px;
+      min-height: 100vh;
+      /* Subtle scanline texture */
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,0,0,0.06) 2px,
+          rgba(0,0,0,0.06) 4px
+        );
+    }
+
+    /* ── Header / title bar ─────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #0b0f1a 0%, #0d1525 60%, #0b0f1a 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-icon {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #1a3050, #0b1525);
+      border: 1px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .header-title {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+
+    .header-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      letter-spacing: 0.05em;
+    }
+
+    .header-badge {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    /* ── Main layout ────────────────────────── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 30px 24px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* ── Section label ──────────────────────── */
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-left: 4px;
+      border-left: 2px solid var(--accent);
+      padding-left: 8px;
+    }
+
+    /* ── Card ───────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 26px;
+    }
+
+    /* ── Config grid ────────────────────────── */
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .field label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.06em;
+    }
+
+    .field input[type="number"],
+    .field select {
+      width: 100%;
+      background: #0e1520;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      padding: 9px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input:focus,
+    .field select:focus { border-color: var(--accent); }
+
+    .field-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .field-checkbox input { accent-color: var(--accent); width: 16px; height: 16px; }
+    .field-checkbox label { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-muted); }
+
+    /* ── Buttons ────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      padding: 11px 28px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #1a6ea0, #1a9ac0);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(28,140,200,0.35);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1e80b8, #20b0dc);
+      box-shadow: var(--glow-cyan);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Live progress ──────────────────────── */
+    .progress-bar-track {
+      width: 100%;
+      height: 6px;
+      background: #0e1520;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1a6ea0, #4cc9f0);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 8px rgba(76,201,240,0.5);
+    }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
+    }
+
+    .metric {
+      background: #0d1420;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 1.55rem;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+
+    .metric-value.green  { color: var(--green); }
+    .metric-value.gold   { color: var(--gold);  }
+    .metric-value.red    { color: var(--red);   }
+
+    .metric-label {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+    }
+
+    /* ── Status message ─────────────────────── */
+    #status-msg {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      padding: 8px 0 2px;
+      min-height: 22px;
+    }
+
+    #status-msg.active { color: var(--accent); }
+    #status-msg.done   { color: var(--green);  }
+    #status-msg.error  { color: var(--red);    }
+
+    /* ── Plots ──────────────────────────────── */
+    .plots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px;
+    }
+
+    .plot-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .plot-title {
+      padding: 10px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.07em;
+    }
+
+    .plot-card img {
+      display: block;
+      width: 100%;
+      background: #0b0f1a;
+    }
+
+    /* ── Results summary ────────────────────── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 16px;
+    }
+
+    .result-tile {
+      background: #0d1420;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      text-align: center;
+    }
+
+    .result-tile .num {
+      font-family: var(--font-mono);
+      font-size: 2rem;
+      color: var(--green);
+      box-shadow: none;
+    }
+
+    .result-tile .lbl {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      margin-top: 5px;
+    }
+
+    /* ── Legend explainer ───────────────────── */
+    .legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .dot {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-open   { background: #2d3748; border: 1px solid #3a4a65; }
+    .dot-cover  { background: #224a2e; border: 1px solid #2d6040; }
+    .dot-agent  { background: #32b4e6; }
+    .dot-threat { background: #dc3c3c; }
+    .dot-base   { background: #dbb622; }
+
+    /* ── Reward table ───────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+
+    th {
+      text-align: left;
+      color: var(--text-dim);
+      font-weight: 400;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #141e2e;
+      color: var(--text-main);
+    }
+
+    td.pos { color: var(--green); }
+    td.neg { color: var(--red);   }
+
+    tr:last-child td { border-bottom: none; }
+
+    /* ── Utility ────────────────────────────── */
+    .hidden { display: none !important; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+  </style>
+</head>
+
+<body>
+
+  <!-- ──────────────────────────────
+       HEADER
+  ────────────────────────────── -->
+  <header>
+    <div class="header-icon">🛡️</div>
+    <div>
+      <div class="header-title">TACTICAL CONVOY EVASION SYSTEM</div>
+      <div class="header-sub">Reinforcement Learning · Q-Learning · RL Dashboard v1.0</div>
+    </div>
+    <div class="header-badge">PROTOTYPE — ACADEMIC USE</div>
+  </header>
+
+  <!-- ──────────────────────────────
+       MAIN CONTENT
+  ────────────────────────────── -->
+  <main>
+
+    <!-- SECTION 1 – Legend ─────────────────────────────────────────── -->
+    <section>
+      <div class="section-label">Simulation Legend</div>
+      <div class="card">
+        <div class="legend-row">
+          <div class="legend-item"><div class="dot dot-agent"></div> Convoy (Agent)</div>
+          <div class="legend-item"><div class="dot dot-threat"></div> Patrol Aircraft (Threat)</div>
+          <div class="legend-item"><div class="dot dot-base"></div> Target Base</div>
+          <div class="legend-item"><div class="dot dot-open"></div> Open Terrain (-1/step)</div>
+          <div class="legend-item"><div class="dot dot-cover"></div> Cover Terrain (-2/step, safe)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2 – Reward Table ───────────────────────────────────── -->
+    <section>
+      <div class="section-label">Reward Structure</div>
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Condition</th>
+              <th>Reward</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🏁 Reach Base</td>
+              <td>Agent arrives at target</td>
+              <td class="pos">+100</td>
+            </tr>
+            <tr>
+              <td>✈️ Detected</td>
+              <td>Open terrain, threat ≤ 2 cells</td>
+              <td class="neg">−100</td>
+            </tr>
+            <tr>
+              <td>🌲 Hide in Cover</td>
+              <td>Hold + Cover terrain, threat near</td>
+              <td class="pos">+5</td>
+            </tr>
+            <tr>
+              <td>⚙️ Move (Open)</td>
+              <td>Each step on open terrain</td>
+              <td class="neg">−1</td>
+            </tr>
+            <tr>
+              <td>🌿 Move (Cover)</td>
+              <td>Each step through cover (friction)</td>
+              <td class="neg">−2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 3 – Training Config & Controls ─────────────────────── -->
+    <section>
+      <div class="section-label">Training Configuration</div>
+      <div class="card">
+        <div class="config-grid">
+          <div class="field">
+            <label>EPISODES</label>
+            <input type="number" id="cfg-episodes" value="600" min="50" max="5000" step="50" />
+          </div>
+          <div class="field">
+            <label>RENDER EVERY (N episodes)</label>
+            <input type="number" id="cfg-render-every" value="50" min="1" max="500" step="10" />
+          </div>
+          <div class="field-checkbox">
+            <input type="checkbox" id="cfg-render" checked />
+            <label>OPEN PYGAME WINDOW</label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btn-train" onclick="startTraining()">
+            ▶ TRAIN AGENT
+          </button>
+          <button class="btn btn-ghost" id="btn-plots" onclick="loadPlots()" disabled>
+            📊 LOAD PLOTS
+          </button>
+        </div>
+
+        <!-- Status message -->
+        <div id="status-msg">Ready. Configure parameters above and click TRAIN AGENT.</div>
+      </div>
+    </section>
+
+    <!-- SECTION 4 – Live Progress ──────────────────────────────────── -->
+    <section id="progress-section" class="hidden">
+      <div class="section-label">Live Training Progress</div>
+      <div class="card">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-bar"></div>
+        </div>
+        <div class="metrics-row">
+          <div class="metric">
+            <div class="metric-value" id="m-episode">0</div>
+            <div class="metric-label">EPISODE</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value gold" id="m-reward">0</div>
+            <div class="metric-label">LAST REWARD</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="m-epsilon">1.000</div>
+            <div class="metric-label">EPSILON (ε)</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value green" id="m-success">—</div>
+            <div class="metric-label">LAST OUTCOME</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5 – Plots ──────────────────────────────────────────── -->
+    <section id="plots-section" class="hidden">
+      <div class="section-label">Training Analysis</div>
+      <div class="plots-grid">
+        <div class="plot-card">
+          <div class="plot-title">// REWARD PER EPISODE</div>
+          <img id="plot-reward" src="" alt="Reward plot loading…" />
+        </div>
+        <div class="plot-card">
+          <div class="plot-title">// AGENT SUCCESS RATE</div>
+          <img id="plot-success" src="" alt="Success rate plot loading…" />
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6 – Results Summary ────────────────────────────────── -->
+    <section id="results-section" class="hidden">
+      <div class="section-label">Final Results</div>
+      <div class="card">
+        <div class="results-grid">
+          <div class="result-tile">
+            <div class="num" id="r-episodes">—</div>
+            <div class="lbl">TOTAL EPISODES</div>
+          </div>
+          <div class="result-tile">
+            <div class="num" id="r-successes">—</div>
+            <div class="lbl">SUCCESSFUL RUNS</div>
+          </div>
+          <div class="result-tile">
+            <div class="num" id="r-winrate">—</div>
+            <div class="lbl">WIN RATE (LAST 100)</div>
+          </div>
+          <div class="result-tile">
+            <div class="num" id="r-avgreward">—</div>
+            <div class="lbl">AVG REWARD</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ──────────────────────────────
+       JAVASCRIPT
+  ────────────────────────────── -->
+  <script>
+    /*
+      All interaction logic lives here.
+      It uses the three Flask endpoints:
+        POST /train  → kick off training
+        GET  /status → poll live progress
+        GET  /plots  → fetch base64 plot images
+        GET  /results → fetch final stats
+    */
+
+    let pollInterval = null;    // setInterval handle
+    let totalEpisodes = 600;    // set from user input on Train click
+
+    // ── Start Training ──────────────────────────────────────────────
+    async function startTraining() {
+      totalEpisodes = parseInt(document.getElementById("cfg-episodes").value) || 600;
+      const renderEvery = parseInt(document.getElementById("cfg-render-every").value) || 50;
+      const render      = document.getElementById("cfg-render").checked;
+
+      // UI state: disable train button, show progress section
+      document.getElementById("btn-train").disabled = true;
+      document.getElementById("btn-plots").disabled = true;
+      document.getElementById("progress-section").classList.remove("hidden");
+      document.getElementById("plots-section").classList.add("hidden");
+      document.getElementById("results-section").classList.add("hidden");
+      setStatus("active", `⚡ Sending training request… (${totalEpisodes} episodes)`);
+
+      try {
+        const res = await fetch("/train", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            episodes:     totalEpisodes,
+            render:       render,
+            render_every: renderEvery,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (res.status === 409) {
+          setStatus("error", "⚠ Training is already running.");
+          document.getElementById("btn-train").disabled = false;
+          return;
+        }
+
+        setStatus("active", `🔁 Training started — ${totalEpisodes} episodes. Polling for updates…`);
+        // Start polling /status every 1 s
+        pollInterval = setInterval(pollStatus, 1000);
+
+      } catch (err) {
+        setStatus("error", "✖ Network error: " + err.message);
+        document.getElementById("btn-train").disabled = false;
+      }
+    }
+
+    // ── Poll /status ────────────────────────────────────────────────
+    async function pollStatus() {
+      try {
+        const res  = await fetch("/status");
+        const data = await res.json();
+
+        const ep = data.episode || 0;
+
+        // Update live metric tiles
+        document.getElementById("m-episode").textContent  = ep;
+        document.getElementById("m-reward").textContent   = (data.reward || 0).toFixed(1);
+        document.getElementById("m-epsilon").textContent  = (data.epsilon || 1).toFixed(3);
+        document.getElementById("m-success").textContent  = data.success ? "✔ SUCCESS" : "✘ FAIL";
+        document.getElementById("m-success").className    =
+          "metric-value " + (data.success ? "green" : "red");
+
+        // Progress bar
+        const pct = totalEpisodes > 0 ? (ep / totalEpisodes * 100).toFixed(1) : 0;
+        document.getElementById("progress-bar").style.width = pct + "%";
+
+        setStatus("active", `🔁 Episode ${ep} / ${totalEpisodes}  (${pct}%)`);
+
+        // Training done?
+        if (data.done) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+          setStatus("done", `✔ Training complete — ${ep} episodes finished. Load plots below.`);
+          document.getElementById("btn-train").disabled = false;
+          document.getElementById("btn-plots").disabled  = false;
+          loadPlots();          // auto-load plots
+          loadResults();
+        }
+
+      } catch (err) {
+        // non-fatal polling error – keep trying
+        console.warn("Poll error:", err);
+      }
+    }
+
+    // ── Load plots ──────────────────────────────────────────────────
+    async function loadPlots() {
+      setStatus("active", "📊 Generating plots…");
+      document.getElementById("plots-section").classList.remove("hidden");
+
+      try {
+        const res  = await fetch("/plots");
+        if (!res.ok) { setStatus("error", "Plot data not available yet."); return; }
+        const data = await res.json();
+
+        document.getElementById("plot-reward").src  = "data:image/png;base64," + data.reward_plot;
+        document.getElementById("plot-success").src = "data:image/png;base64," + data.success_plot;
+        setStatus("done", "✔ Plots rendered successfully.");
+
+      } catch (err) {
+        setStatus("error", "✖ Could not load plots: " + err.message);
+      }
+    }
+
+    // ── Load results summary ────────────────────────────────────────
+    async function loadResults() {
+      try {
+        const res  = await fetch("/results");
+        if (!res.ok) return;
+        const d    = await res.json();
+
+        document.getElementById("r-episodes").textContent  = d.total_episodes ?? "—";
+        document.getElementById("r-successes").textContent = d.successes ?? "—";
+        document.getElementById("r-winrate").textContent   = (d.win_rate_last_100 ?? "—") + "%";
+        document.getElementById("r-avgreward").textContent = d.avg_reward ?? "—";
+        document.getElementById("results-section").classList.remove("hidden");
+
+      } catch (err) {
+        console.warn("Results fetch error:", err);
+      }
+    }
+
+    // ── Status message helper ───────────────────────────────────────
+    function setStatus(type, msg) {
+      const el = document.getElementById("status-msg");
+      el.className = type;           // "active" | "done" | "error" | ""
+      el.textContent = msg;
+    }
+  </script>
+
+</body>
+</html>
